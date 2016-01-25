@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Autocell 3</title>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<script type="text/javascript" src="http://www.google.com/jsapi"></script>
+<script> google.load("jquery", "1.4.2"); </script>
+<script type="text/javascript" src="rules.js"></script>
+<script type="text/javascript">
+window.onload = function() {
+	init_autocell();
+	$('#autocell').click( function(e) { autocell_click(e.clientX-$('#autocell').offset().left, e.clientY-$('#autocell').offset().top); } );
+	run_autocell('Medium');
+	render_autocell();
+	
+	$('#uploadframe').load(function(){
+		set_board(frames['uploadframe'].document.getElementsByTagName("body")[0].innerHTML);
+	});
+}
+
+var border_size = 1;
+var brush = 'BLACK';
+var zIndex = 0;
+
+var temp_board = '[[["EMPTY","BLACK"],["WHITE","EMPTY"]]]';
+                        
+var updateTimer = 0;
+
+var autocell_board = [];
+var autocell_rules = [];
+var autocell_inheritances = [];
+
+var autocell_pics = {};
+
+var GAME_OF_LIFE = "WHITE->BLACK: count (neighbors ofType BLACK) = 3\nBLACK->WHITE: not (count (neighbors ofType BLACK) isIn [2,3])";
+var GAME_OF_LIFE_BOARD = '[[["WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE"],["WHITE","WHITE","BLACK","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE"],["WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE"],["WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE"],["WHITE","BLACK","BLACK","WHITE","BLACK","BLACK","WHITE","BLACK","BLACK","WHITE"],["BLACK","WHITE","WHITE","BLACK","WHITE","WHITE","BLACK","WHITE","WHITE","BLACK"],["WHITE","BLACK","BLACK","WHITE","BLACK","BLACK","WHITE","BLACK","BLACK","WHITE"],["WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE"],["WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","BLACK","WHITE","WHITE"],["WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE"]]]';
+
+var SEEDS = "WHITE->BLACK: count (neighbors ofType BLACK) = 2\nBLACK->WHITE: 1";
+
+var BRIANS_BRAIN = "WHITE->BLACK: count (neighbors ofType BLACK) = 2\nBLACK->GREEN: 1\nGREEN->WHITE: 1";
+
+var WIREWORLD = "BLUE->RED: 1\nRED->YELLOW: 1\nYELLOW->BLUE: count (neighbors ofType BLUE) isIn [1,2]";
+var WIREWORLD_BOARD = '[[["BLACK","YELLOW","BLACK","BLACK","BLACK","YELLOW","YELLOW","BLACK","BLACK","BLACK"],["YELLOW","BLACK","YELLOW","BLACK","YELLOW","BLACK","YELLOW","YELLOW","YELLOW","BLACK"],["YELLOW","BLACK","BLACK","YELLOW","BLACK","YELLOW","YELLOW","BLACK","BLACK","YELLOW"],["BLACK","YELLOW","BLACK","BLACK","BLACK","BLACK","BLACK","BLACK","BLACK","YELLOW"],["BLACK","BLACK","YELLOW","BLACK","BLACK","RED","YELLOW","BLACK","BLACK","YELLOW"],["BLACK","YELLOW","BLACK","BLACK","BLUE","BLACK","BLACK","YELLOW","BLACK","YELLOW"],["YELLOW","BLACK","BLACK","BLACK","BLACK","YELLOW","YELLOW","BLACK","BLACK","YELLOW"],["BLACK","YELLOW","BLACK","BLACK","BLACK","BLACK","BLACK","YELLOW","BLACK","YELLOW"],["YELLOW","BLACK","BLACK","YELLOW","YELLOW","BLACK","BLACK","YELLOW","BLACK","YELLOW"],["BLACK","YELLOW","YELLOW","BLACK","BLACK","YELLOW","YELLOW","BLACK","YELLOW","BLACK"]]]';
+
+var LANGTONS_ANT = 'draw ANT_N_WHITE images/ant/north_white.png\ndraw ANT_N_BLACK images/ant/north_black.png\ndraw ANT_E_WHITE images/ant/east_white.png\ndraw ANT_E_BLACK images/ant/east_black.png\ndraw ANT_S_WHITE images/ant/south_white.png\ndraw ANT_S_BLACK images/ant/south_black.png\ndraw ANT_W_WHITE images/ant/west_white.png\ndraw ANT_W_BLACK images/ant/west_black.png\n\nANT_N_WHITE->WHITE: 1\nANT_E_WHITE->WHITE: 1\nANT_S_WHITE->WHITE: 1\nANT_W_WHITE->WHITE: 1\n\nANT_N_BLACK->BLACK: 1\nANT_E_BLACK->BLACK: 1\nANT_S_BLACK->BLACK: 1\nANT_W_BLACK->BLACK: 1\n\nWHITE->ANT_N_BLACK: west isIn ["ANT_E_BLACK","ANT_E_WHITE"]\nWHITE->ANT_E_BLACK: north isIn ["ANT_S_BLACK","ANT_S_WHITE"]\nWHITE->ANT_S_BLACK: east isIn ["ANT_W_BLACK","ANT_W_WHITE"]\nWHITE->ANT_W_BLACK: south isIn ["ANT_N_BLACK","ANT_N_WHITE"]\n\nBLACK->ANT_N_WHITE: east isIn ["ANT_W_BLACK","ANT_W_WHITE"]\nBLACK->ANT_E_WHITE: south isIn ["ANT_N_BLACK","ANT_N_WHITE"]\nBLACK->ANT_S_WHITE: west isIn ["ANT_E_BLACK","ANT_E_WHITE"]\nBLACK->ANT_W_WHITE: north isIn ["ANT_S_BLACK","ANT_S_WHITE"]';
+var LANGTONS_ANT_BOARD = '[[["WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE"],["WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE"],["WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE"],["WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE"],["WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE"],["WHITE","WHITE","WHITE","WHITE","ANT_N_WHITE","WHITE","WHITE","WHITE","WHITE","WHITE"],["WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE"],["WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE"],["WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE"],["WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE","WHITE"]]]';
+
+var speeds = {Fast: 100, Medium:800, Slow:2000, Stopped:0};
+function run_autocell(speed) {
+	clearInterval(updateTimer);
+	$('#speed').html(speed);
+	if (speed == 'Stopped') { return; }
+	if (speeds[speed] === undefined) { alert(speed+" isn't a valid speed!"); return; }
+	updateTimer = setInterval('update_autocell()', speeds[speed]);
+}
+function stop_autocell() { run_autocell('Stopped'); }
+
+function init_autocell() {
+	set_board(make_new_board(10,10,1));
+	set_rules('');
+}
+
+function update_autocell() {
+	try {
+		var newboard = new Array(autocell_board.length);
+		for(var z in autocell_board) {
+			newboard[z] = new Array(autocell_board[z].length);
+			for(var y in autocell_board[z]) {
+				newboard[z][y] = new Array(autocell_board[z][y].length);
+				for(var x in autocell_board[z][y]) {
+					newboard[z][y][x] = apply_rules(parseInt(x),parseInt(y),parseInt(z));
+				}
+			}
+		}
+		autocell_board = newboard;
+	} catch (err) {
+		if (err.stack != undefined) {
+			alert('Runtime error: '+err.stack);
+		} else {
+			alert('Runtime error: '+err);
+		}
+		stop_autocell();
+	}
+	
+	render_autocell();
+}
+
+var color_list = {
+	EMPTY:"0,0,0,0", BLACK:"0,0,0,1", WHITE:"255,255,255,1",
+	RED:"255,0,0,1", GREEN:"0,255,0,1", BLUE:"0,0,255,1",
+	YELLOW:"255,255,0,1", CYAN:"0,255,255,1", PINK:"255,0,255,1",
+	BROWN:"100,50,0,1", GREY:"75,75,75,1", GRAY:"75,75,75,1"};
+
+function render_autocell() {
+	var context = document.getElementById('autocell').getContext('2d');
+	
+	var canvas_width = $('#autocell').width()+border_size;
+	var canvas_height = $('#autocell').height()+border_size;
+	
+	context.fillStyle = "rgba(125,125,125,1)";
+	context.fillRect(0,0, canvas_width, canvas_height);
+	
+	for(var z in autocell_board) {
+		var cell_height = canvas_height/autocell_board[z].length;
+		for(var y in autocell_board[z]) {
+			var cell_width = canvas_width/autocell_board[z][y].length;
+			for(var x in autocell_board[z][y]) {
+				var type = autocell_board[z][y][x];
+	
+				var image = autocell_pics[type];
+				if (image === undefined) {
+					if (color_list[type] !== undefined) {
+						context.fillStyle = "rgba("+color_list[type]+")";
+						context.fillRect(cell_width*x,cell_height*y, cell_width-border_size, cell_height-border_size);
+						continue;
+					}
+					
+					image = autocell_pics['NULL'];
+				}
+				
+				context.drawImage(image, cell_width*x,cell_height*y, cell_width-border_size, cell_height-border_size);
+			}
+		}
+	}
+}
+
+function load_image(imageName, imageSrc) {
+	var img = new Image();
+	img.src = imageSrc;
+	autocell_pics[imageName] = img;
+}
+
+function set_board(boardText) {
+	try {
+		autocell_board = JSON.parse(boardText);
+		update_z_index(0);
+		render_autocell();
+	} catch (err) {
+		alert(err);
+	}
+}
+
+function update_z_index(newIndex) {
+	zIndex = newIndex;
+	if (autocell_board.length > 1) {
+		$('#layerspace').css("display", "block");
+		$('#layer').html(newIndex+1);
+		$('#layertotal').html(autocell_board.length);
+		$('#layerselect').attr("max", autocell_board.length);
+	} else {
+		$('#layerspace').css("display", "none");
+	}
+}
+
+function load_board() {
+	var dropDownVal = document.getElementById('loadboarddropdown').value;
+	if (dropDownVal == "TEMP") {
+		var boardText = temp_board;
+	} else {
+		var boardText = unescape(dropDownVal);
+	}
+	set_board(boardText);
+}
+
+function make_solid_2d_board(width, height, content) {
+	var results = '[';
+	for(var y=0; y < height; y++) {
+		if (y != 0) { results += ','; }
+		results += '[';
+		for(var x=0; x < width; x++) {
+			if (x != 0) { results += ','; }
+			results += '"'+content+'"';
+		}
+		results += ']';
+	}
+	results += ']';
+	return results;
+}
+
+function make_new_board(width, height, depth) {
+	var results = '[';
+	for(var z=0; z < depth; z++) {
+		var content = 'WHITE';
+		if (z != 0) { results += ','; content = 'EMPTY'; }
+		results += make_solid_2d_board(width, height, content);
+	}
+	results += ']';
+	return results;
+}
+
+function autocell_click(rawX,rawY) {
+	var canvas_width = $('#autocell').width()+1;
+	var canvas_height = $('#autocell').height()+1;
+	
+	var cell_height = canvas_height/autocell_board[zIndex].length;
+	var y = parseInt(rawY/cell_height);
+	var cell_width = canvas_width/autocell_board[zIndex][y].length;
+	var x = parseInt(rawX/cell_width);
+	if (brush == 'eyedropper') {
+		brush = autocell_board[zIndex][y][x];
+		$('#brush').val(brush);
+		$('#autocell').css('cursor','default');
+	} else {
+		autocell_board[zIndex][y][x] = brush;
+		render_autocell();
+	}
+}
+
+function export_as_gif() {
+	stop_autocell();
+
+	var frameCount = $('#exportframecount').val();
+	frameCount = Math.max(2, Math.min(25, Math.round(frameCount)));
+	
+	var frames = [];
+	var canvas = document.getElementById('autocell');
+	for(var frameNo=0; frameNo < frameCount; frameNo++) {
+		var frameData = canvas.toDataURL();
+		frames.push(frameData.substr(frameData.indexOf(",")+1));
+		update_autocell();
+	}
+	
+	var frameDelay = Math.max(1, Math.round( 100 / $('#exportframespeed').val() ));
+	
+	$.post("gifGen/export.php", { data: frames.join(";"), delay: frameDelay },
+		function(results){
+			$('#blah').html('<img src="gifGen/'+results+'"/>');
+		});
+}
+
+function resize_board(newWidth, newHeight) {
+	var el = document.getElementById('autocell');
+	el.height = newHeight-border_size;
+	el.width = newWidth-border_size;
+	
+	render_autocell();
+}
+
+function set_border(newSize) {
+	border_size = newSize;
+	render_autocell();
+}
+</script>
+<style type="text/css">
+	#body {
+		background-color: #EFE;
+	}
+	
+	hr {
+		margin-left: 0;
+		width: 1000px;
+	}
+	
+	section {
+		display: block;
+	}
+
+	#autocell {
+		border: thin solid black;
+	}
+	
+	#primarysection {
+		overflow: hidden;
+	}
+	
+	#worldspace {
+		float: left;
+		text-align: center;
+		padding: 5px 15px;
+	}
+	
+	#rulesspace {
+		float: left;
+		text-align: center;
+	}
+	
+	#graphicssection {
+		clear: both;
+	}
+</style>
+</head>
+<body id="body">
+<section id="metasection">
+	<button onclick="set_board(make_new_board(parseInt(document.getElementById('newboardwidth').value),parseInt(document.getElementById('newboardheight').value),parseInt(document.getElementById('newboarddepth').value)))">New Board: </button>
+	<input style="width: 25px;" type="text" value="10" id="newboardwidth"/>×<input style="width: 25px;" type="text" value="10" id="newboardheight"/>×<input style="width: 20px;" type="text" value="1"  id="newboarddepth"/><br/>
+	
+	<button onclick="temp_board = JSON.stringify(autocell_board)">Save Board to Temp</button><button onclick="window.open('data:text/plain;charset=utf-8,'+JSON.stringify(autocell_board));" style="margin-left: 30px;">View Board as Text</button><br/>
+
+	<button onclick="load_board()" style="margin-right: 0px;">Load Board: </button>
+	<select id="loadboarddropdown" style="margin-left: 0px;">
+		<script type="text/javascript">
+		document.write('<option value="'+escape(GAME_OF_LIFE_BOARD)+'">Splotches of Black</option>');
+		document.write('<option value="'+escape(WIREWORLD_BOARD)+'">Wireworld</option>');
+		document.write('<option value="'+escape(LANGTONS_ANT_BOARD)+'">Langton\'s Ant</option>');
+		</script>
+		<option value="TEMP">Temp</option>
+	</select>
+
+	<button onclick="set_rules(unescape(document.getElementById('loadrulesdropdown').value))" style="margin-right: 0px; margin-left: 135px;">Load Ruleset: </button>
+	<select id="loadrulesdropdown" style="margin-left: 0px;">
+		<script type="text/javascript">
+		document.write('<option value="">Blank</option>');
+		document.write('<option value="'+escape(GAME_OF_LIFE)+'">Conway\'s Life</option>');
+		document.write('<option value="'+escape(SEEDS)+'">Seeds</option>');
+		document.write('<option value="'+escape(WIREWORLD)+'">Wireworld</option>');
+		document.write('<option value="'+escape(BRIANS_BRAIN)+'">Brian\'s Brain</option>');
+		document.write('<option value="'+escape(LANGTONS_ANT)+'">Langton\'s Ant</option>');
+		</script>
+	</select><br/>
+	
+	<form enctype="multipart/form-data" action="echoUpload.php" method="POST" target="uploadframe">
+		<button>Upload Board:</button>
+		<input name="uploadedfile" type="file"/><input type="hidden" name="MAX_FILE_SIZE" value="100000" />
+	</form>
+	<iframe style="display: none" height="100" width="100" name="uploadframe" id="uploadframe"></iframe>
+</section>
+<hr/>
+<section id="primarysection">
+	<div id="worldspace">
+		<input type="text" id="brush" value="BLACK" onkeyup="brush=this.value.toUpperCase(); this.value=brush; $('#autocell').css('cursor','default');"/><button onclick="brush='eyedropper'; $('#brush').val('...'); $('#autocell').css('cursor','crosshair');">Eyedropper</button><br/>
+		<script type="text/javascript"> document.write('<canvas id="autocell" width="'+(330-border_size)+'" height="'+(330-border_size)+'">Your browser does not support this game.</canvas><br/>'); </script>
+		<button onclick="run_autocell('Fast')">Fast</button>
+		<button onclick="run_autocell('Medium')">Medium</button>
+		<button onclick="run_autocell('Slow')">Slow</button>
+		<button onclick="stop_autocell()">Stop</button>
+		<button onclick="update_autocell()">Step</button><br/>
+		Current speed: <span id="speed">Medium</span>
+		<div id="layerspace">
+			Editing Layer <span id="layer">1</span>/<span id="layertotal">1</span> <input id="layerselect" type="range" min="1" max="1" value="1" style="margin-top: 4px;" onchange="update_z_index(this.value - 1)"/>
+		</div>
+	</div>
+	
+	<div id="rulesspace">
+		<textarea wrap="off" id="rules" cols="65" rows="22">Enter rules here</textarea><br/>
+		<button onclick="set_rules($('#rules').val())">Update Rules</button>
+	</div>
+</section>
+<hr/>
+<section id="graphicssection">
+	<button onclick="set_border(parseInt($('#borderwidth').val()))">Set Border Width: </button><input style="width: 30px;" type="text" value="1" id="borderwidth"/><br/>
+	
+	<button onclick="resize_board(parseInt($('#resizewidth').val()), parseInt($('#resizeheight').val()))">Resize Board Graphics: </button><input style="width: 30px;" type="text" value="330" id="resizewidth"/>×<input style="width: 30px;" type="text" value="330" id="resizeheight"/><br/>
+	<br/>
+	<button onclick="export_as_gif()">Export to animated gif: </button> # of Steps = <input id="exportframecount" type="number" value="3" min="2" max="25" style="height: 25px; width: 50px;"/> Speed = <input id="exportframespeed" type="number" value="1" max="100" style="height: 25px; width: 50px;"/> frames per second
+	<p id="blah"></p>
+</section>
+</body>
+</html>

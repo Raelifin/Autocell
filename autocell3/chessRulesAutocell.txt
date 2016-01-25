@@ -1,0 +1,151 @@
+###  Instructions!  ###
+//
+//First, make sure the automaton is set to "stop".
+//Switch to layer 3 and lay down a RED tile under the piece you
+//wish to move. Then place a BLUE tile where you wish to go.
+//
+//Hit the step button once, and the piece should move. If all
+//goes well, a GREEN square should occupy the space previously
+//occupied by the moving piece. Step a second time to clear the
+//GREEN, and switch to the other player's turn.
+//
+//This is more of a proof of concept than a sensible automaton.
+//There's far too many rules to pay attention to, etc.
+//
+//Note: There are no rules for check, castling, en passant, or
+//pawn promotion.
+//
+###  Pictures!  ###
+draw W_KING images/chess/wk.png
+draw W_QUEEN images/chess/wq.png
+draw W_BISHOP images/chess/wb.png
+draw W_KNIGHT images/chess/wn.png
+draw W_ROOK images/chess/wr.png
+draw W_PAWN images/chess/wp.png
+
+draw B_KING images/chess/bk.png
+draw B_QUEEN images/chess/bq.png
+draw B_BISHOP images/chess/bb.png
+draw B_KNIGHT images/chess/bn.png
+draw B_ROOK images/chess/br.png
+draw B_PAWN images/chess/bp.png
+
+###  Inheritances!  ###
+inherit PIECE: W_PIECE B_PIECE
+inherit W_PIECE: W_KING W_QUEEN W_BISHOP W_KNIGHT W_ROOK W_PAWN
+inherit B_PIECE: B_KING B_QUEEN B_BISHOP B_KNIGHT B_ROOK B_PAWN
+inherit VALID_W_MOVE: EMPTY B_PIECE
+inherit VALID_B_MOVE: EMPTY W_PIECE
+
+###  Rules!  ###
+BLUE->EMPTY: 1
+RED->EMPTY: 1
+GREEN->EMPTY: 1
+
+WHITES_MOVE->BLACKS_MOVE: count (cells ofType GREEN) > 0
+BLACKS_MOVE->WHITES_MOVE: count (cells ofType GREEN) > 0
+
+//--// PAWN RULES //--//
+//Black Pawn Basic Move
+EMPTY->B_PAWN: down = BLUE and (cellAt(thisPos+[0,1,-1]) = RED) and south = B_PAWN and (cellAt [0,0,0] = BLACKS_MOVE)
+B_PAWN->GREEN: down = RED and (cellAt(thisPos+[0,-1,-1]) = BLUE) and north = EMPTY and (cellAt [0,0,0] = BLACKS_MOVE)
+
+//Black Pawn Double Move
+EMPTY->B_PAWN: down = BLUE and (cellAt(thisPos+[0,2,-1]) = RED) and farsouth = B_PAWN and south = EMPTY and (yVal thisPos = 4) and (cellAt [0,0,0] = BLACKS_MOVE)
+B_PAWN->GREEN: down = RED and (cellAt(thisPos+[0,-2,-1]) = BLUE) and farnorth = EMPTY and north = EMPTY and (yVal thisPos = 6) and (cellAt [0,0,0] = BLACKS_MOVE)
+
+//Black Pawn Diagonal-Right Attack
+W_PIECE->B_PAWN: down = BLUE and (cellAt(thisPos+[-1,1,-1]) = RED) and southwest = B_PAWN and (cellAt [0,0,0] = BLACKS_MOVE)
+B_PAWN->GREEN: down = RED and (cellAt(thisPos+[1,-1,-1]) = BLUE) and northeast instanceOf W_PIECE and (cellAt [0,0,0] = BLACKS_MOVE)
+
+//Black Pawn Diagonal-Left Attack
+W_PIECE->B_PAWN: down = BLUE and (cellAt(thisPos+[1,1,-1]) = RED) and southeast = B_PAWN and (cellAt [0,0,0] = BLACKS_MOVE)
+B_PAWN->GREEN: down = RED and (cellAt(thisPos+[-1,-1,-1]) = BLUE) and northwest instanceOf W_PIECE and (cellAt [0,0,0] = BLACKS_MOVE)
+
+//White Pawn Basic Move
+EMPTY->W_PAWN: down = BLUE and (cellAt(thisPos+[0,-1,-1]) = RED) and north = W_PAWN and (cellAt [0,0,0] = WHITES_MOVE)
+W_PAWN->GREEN: down = RED and (cellAt(thisPos+[0,1,-1]) = BLUE) and south = EMPTY and (cellAt [0,0,0] = WHITES_MOVE)
+
+//White Pawn Double Move
+EMPTY->W_PAWN: down = BLUE and (cellAt(thisPos+[0,-2,-1]) = RED) and farnorth = W_PAWN and north = EMPTY and (yVal thisPos = 3) and (cellAt [0,0,0] = WHITES_MOVE)
+W_PAWN->GREEN: down = RED and (cellAt(thisPos+[0,2,-1]) = BLUE) and farsouth = EMPTY and south = EMPTY and (yVal thisPos = 1) and (cellAt [0,0,0] = WHITES_MOVE)
+
+//White Pawn Diagonal-Right Attack
+B_PIECE->W_PAWN: down = BLUE and (cellAt(thisPos+[-1,-1,-1]) = RED) and northwest = W_PAWN and (cellAt [0,0,0] = WHITES_MOVE)
+W_PAWN->GREEN: down = RED and (cellAt(thisPos+[1,1,-1]) = BLUE) and southeast instanceOf B_PIECE and (cellAt [0,0,0] = WHITES_MOVE)
+
+//White Pawn Diagonal-Left Attack
+B_PIECE->W_PAWN: down = BLUE and (cellAt(thisPos+[1,-1,-1]) = RED) and northeast = W_PAWN and (cellAt [0,0,0] = WHITES_MOVE)
+W_PAWN->GREEN: down = RED and (cellAt(thisPos+[-1,1,-1]) = BLUE) and southwest instanceOf B_PIECE and (cellAt [0,0,0] = WHITES_MOVE)
+
+//--// ROOK RULES //--//
+//Black Rook North Move/Attack
+VALID_B_MOVE->B_ROOK: down = BLUE and (cellAt(thisPos+[0,?x?,-1]) = RED) and (cellAt(thisPos+[0,?x?,0]) = B_ROOK) and (count(cellsBetween(thisPos wrapWith (thisPos+[0,?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = BLACKS_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [0,1,0]) push RED) )
+B_ROOK->GREEN: down = RED and (cellAt(thisPos+[0,?x?,-1]) = BLUE) and (cellAt(thisPos+[0,?x?,0]) instanceOf VALID_B_MOVE) and (count(cellsBetween(thisPos wrapWith (thisPos+[0,?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = BLACKS_MOVE); x definedAs negative( count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [0,-1,0]) push BLUE) ) )
+
+//Black Rook South Move/Attack
+VALID_B_MOVE->B_ROOK: down = BLUE and (cellAt(thisPos+[0,?x?,-1]) = RED) and (cellAt(thisPos+[0,?x?,0]) = B_ROOK) and (count(cellsBetween(thisPos wrapWith (thisPos+[0,?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = BLACKS_MOVE); x definedAs negative( count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [0,-1,0]) push RED) ) )
+B_ROOK->GREEN: down = RED and (cellAt(thisPos+[0,?x?,-1]) = BLUE) and (cellAt(thisPos+[0,?x?,0]) instanceOf VALID_B_MOVE) and (count(cellsBetween(thisPos wrapWith (thisPos+[0,?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = BLACKS_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [0,1,0]) push BLUE) )
+
+//Black Rook East Move/Attack
+VALID_B_MOVE->B_ROOK: down = BLUE and (cellAt(thisPos+[?x?,0,-1]) = RED) and (cellAt(thisPos+[?x?,0,0]) = B_ROOK) and (count(cellsBetween(thisPos wrapWith (thisPos+[?x?,0,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = BLACKS_MOVE); x definedAs negative( count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [-1,0,0]) push RED) ) )
+B_ROOK->GREEN: down = RED and (cellAt(thisPos+[?x?,0,-1]) = BLUE) and (cellAt(thisPos+[?x?,0,0]) instanceOf VALID_B_MOVE) and (count(cellsBetween(thisPos wrapWith (thisPos+[?x?,0,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = BLACKS_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [1,0,0]) push BLUE) )
+
+//Black Rook West Move/Attack
+VALID_B_MOVE->B_ROOK: down = BLUE and (cellAt(thisPos+[?x?,0,-1]) = RED) and (cellAt(thisPos+[?x?,0,0]) = B_ROOK) and (count(cellsBetween(thisPos wrapWith (thisPos+[?x?,0,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = BLACKS_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [1,0,0]) push RED) )
+B_ROOK->GREEN: down = RED and (cellAt(thisPos+[?x?,0,-1]) = BLUE) and (cellAt(thisPos+[?x?,0,0]) instanceOf VALID_B_MOVE) and (count(cellsBetween(thisPos wrapWith (thisPos+[?x?,0,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = BLACKS_MOVE); x definedAs negative( count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [-1,0,0]) push BLUE) ) )
+
+//White Rook North Move/Attack
+VALID_W_MOVE->W_ROOK: down = BLUE and (cellAt(thisPos+[0,?x?,-1]) = RED) and (cellAt(thisPos+[0,?x?,0]) = W_ROOK) and (count(cellsBetween(thisPos wrapWith (thisPos+[0,?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = WHITES_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [0,1,0]) push RED) )
+W_ROOK->GREEN: down = RED and (cellAt(thisPos+[0,?x?,-1]) = BLUE) and (cellAt(thisPos+[0,?x?,0]) instanceOf VALID_W_MOVE) and (count(cellsBetween(thisPos wrapWith (thisPos+[0,?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = WHITES_MOVE); x definedAs negative( count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [0,-1,0]) push BLUE) ) )
+
+//White Rook South Move/Attack
+VALID_W_MOVE->W_ROOK: down = BLUE and (cellAt(thisPos+[0,?x?,-1]) = RED) and (cellAt(thisPos+[0,?x?,0]) = W_ROOK) and (count(cellsBetween(thisPos wrapWith (thisPos+[0,?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = WHITES_MOVE); x definedAs negative( count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [0,-1,0]) push RED) ) )
+W_ROOK->GREEN: down = RED and (cellAt(thisPos+[0,?x?,-1]) = BLUE) and (cellAt(thisPos+[0,?x?,0]) instanceOf VALID_W_MOVE) and (count(cellsBetween(thisPos wrapWith (thisPos+[0,?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = WHITES_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [0,1,0]) push BLUE) )
+
+//White Rook East Move/Attack
+VALID_W_MOVE->W_ROOK: down = BLUE and (cellAt(thisPos+[?x?,0,-1]) = RED) and (cellAt(thisPos+[?x?,0,0]) = W_ROOK) and (count(cellsBetween(thisPos wrapWith (thisPos+[?x?,0,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = WHITES_MOVE); x definedAs negative( count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [-1,0,0]) push RED) ) )
+W_ROOK->GREEN: down = RED and (cellAt(thisPos+[?x?,0,-1]) = BLUE) and (cellAt(thisPos+[?x?,0,0]) instanceOf VALID_W_MOVE) and (count(cellsBetween(thisPos wrapWith (thisPos+[?x?,0,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = WHITES_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [1,0,0]) push BLUE) )
+
+//White Rook West Move/Attack
+VALID_W_MOVE->W_ROOK: down = BLUE and (cellAt(thisPos+[?x?,0,-1]) = RED) and (cellAt(thisPos+[?x?,0,0]) = W_ROOK) and (count(cellsBetween(thisPos wrapWith (thisPos+[?x?,0,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = WHITES_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [1,0,0]) push RED) )
+W_ROOK->GREEN: down = RED and (cellAt(thisPos+[?x?,0,-1]) = BLUE) and (cellAt(thisPos+[?x?,0,0]) instanceOf VALID_W_MOVE) and (count(cellsBetween(thisPos wrapWith (thisPos+[?x?,0,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = WHITES_MOVE); x definedAs negative( count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [-1,0,0]) push BLUE) ) )
+
+//--// BISHOP RULES //--//
+//Black Bishop North-West Move/Attack
+VALID_B_MOVE->B_BISHOP: down = BLUE and (cellAt(thisPos+[?x?,?x?,-1]) = RED) and (cellAt(thisPos+[?x?,?x?,0]) = B_BISHOP) and (count(cellsBetween(thisPos wrapWith (thisPos+[?x?,?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = BLACKS_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [1,1,0]) push RED) )
+B_BISHOP->GREEN: down = RED and (cellAt(thisPos+[-?x?,-?x?,-1]) = BLUE) and (cellAt(thisPos+[-?x?,-?x?,0]) instanceOf VALID_B_MOVE) and (count(cellsBetween(thisPos wrapWith (thisPos+[-?x?,-?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = BLACKS_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [-1,-1,0]) push BLUE) )
+
+//Black Bishop North-East Move/Attack
+VALID_B_MOVE->B_BISHOP: down = BLUE and (cellAt(thisPos+[-?x?,?x?,-1]) = RED) and (cellAt(thisPos+[-?x?,?x?,0]) = B_BISHOP) and (count(cellsBetween(thisPos wrapWith (thisPos+[-?x?,?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = BLACKS_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [-1,1,0]) push RED) )
+B_BISHOP->GREEN: down = RED and (cellAt(thisPos+[?x?,-?x?,-1]) = BLUE) and (cellAt(thisPos+[?x?,-?x?,0]) instanceOf VALID_B_MOVE) and (count(cellsBetween(thisPos wrapWith (thisPos+[?x?,-?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = BLACKS_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [1,-1,0]) push BLUE) )
+
+//Black Bishop South-West Move/Attack
+VALID_B_MOVE->B_BISHOP: down = BLUE and (cellAt(thisPos+[?x?,-?x?,-1]) = RED) and (cellAt(thisPos+[?x?,-?x?,0]) = B_BISHOP) and (count(cellsBetween(thisPos wrapWith (thisPos+[?x?,-?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = BLACKS_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [1,-1,0]) push RED) )
+B_BISHOP->GREEN: down = RED and (cellAt(thisPos+[-?x?,?x?,-1]) = BLUE) and (cellAt(thisPos+[-?x?,?x?,0]) instanceOf VALID_B_MOVE) and (count(cellsBetween(thisPos wrapWith (thisPos+[-?x?,?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = BLACKS_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [-1,1,0]) push BLUE) )
+
+//Black Bishop South-East Move/Attack
+VALID_B_MOVE->B_BISHOP: down = BLUE and (cellAt(thisPos+[-?x?,-?x?,-1]) = RED) and (cellAt(thisPos+[-?x?,-?x?,0]) = B_BISHOP) and (count(cellsBetween(thisPos wrapWith (thisPos+[-?x?,-?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = BLACKS_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [-1,-1,0]) push RED) )
+B_BISHOP->GREEN: down = RED and (cellAt(thisPos+[?x?,?x?,-1]) = BLUE) and (cellAt(thisPos+[?x?,?x?,0]) instanceOf VALID_B_MOVE) and (count(cellsBetween(thisPos wrapWith (thisPos+[?x?,?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = BLACKS_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [1,1,0]) push BLUE) )
+
+//White Bishop North-West Move/Attack
+VALID_W_MOVE->W_BISHOP: down = BLUE and (cellAt(thisPos+[?x?,?x?,-1]) = RED) and (cellAt(thisPos+[?x?,?x?,0]) = W_BISHOP) and (count(cellsBetween(thisPos wrapWith (thisPos+[?x?,?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = WHITES_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [1,1,0]) push RED) )
+W_BISHOP->GREEN: down = RED and (cellAt(thisPos+[-?x?,-?x?,-1]) = BLUE) and (cellAt(thisPos+[-?x?,-?x?,0]) instanceOf VALID_W_MOVE) and (count(cellsBetween(thisPos wrapWith (thisPos+[-?x?,-?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = WHITES_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [-1,-1,0]) push BLUE) )
+
+//White Bishop North-East Move/Attack
+VALID_W_MOVE->W_BISHOP: down = BLUE and (cellAt(thisPos+[-?x?,?x?,-1]) = RED) and (cellAt(thisPos+[-?x?,?x?,0]) = W_BISHOP) and (count(cellsBetween(thisPos wrapWith (thisPos+[-?x?,?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = WHITES_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [-1,1,0]) push RED) )
+W_BISHOP->GREEN: down = RED and (cellAt(thisPos+[?x?,-?x?,-1]) = BLUE) and (cellAt(thisPos+[?x?,-?x?,0]) instanceOf VALID_W_MOVE) and (count(cellsBetween(thisPos wrapWith (thisPos+[?x?,-?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = WHITES_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [1,-1,0]) push BLUE) )
+
+//White Bishop South-West Move/Attack
+VALID_W_MOVE->W_BISHOP: down = BLUE and (cellAt(thisPos+[?x?,-?x?,-1]) = RED) and (cellAt(thisPos+[?x?,-?x?,0]) = W_BISHOP) and (count(cellsBetween(thisPos wrapWith (thisPos+[?x?,-?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = WHITES_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [1,-1,0]) push RED) )
+W_BISHOP->GREEN: down = RED and (cellAt(thisPos+[-?x?,?x?,-1]) = BLUE) and (cellAt(thisPos+[-?x?,?x?,0]) instanceOf VALID_W_MOVE) and (count(cellsBetween(thisPos wrapWith (thisPos+[-?x?,?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = WHITES_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [-1,1,0]) push BLUE) )
+
+//White Bishop South-East Move/Attack
+VALID_W_MOVE->W_BISHOP: down = BLUE and (cellAt(thisPos+[-?x?,-?x?,-1]) = RED) and (cellAt(thisPos+[-?x?,-?x?,0]) = W_BISHOP) and (count(cellsBetween(thisPos wrapWith (thisPos+[-?x?,-?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = WHITES_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [-1,-1,0]) push RED) )
+W_BISHOP->GREEN: down = RED and (cellAt(thisPos+[?x?,?x?,-1]) = BLUE) and (cellAt(thisPos+[?x?,?x?,0]) instanceOf VALID_W_MOVE) and (count(cellsBetween(thisPos wrapWith (thisPos+[?x?,?x?,0])) ofType PIECE) = 0) and (cellAt [0,0,0] = WHITES_MOVE); x definedAs count( fromStepUntil(((thisPos+[0,0,-1]) wrapWith [1,1,0]) push BLUE) )
+
+//--// KNIGHT RULES //--//
+//Black Knight NNW Move/Attack
+//This isn't working. I have no idea why.
+VALID_B_MOVE->B_KNIGHT: down = BLUE and (cellAt(thisPos+[1,2,-1]) = RED) and (cellAt(thisPos+[1,2,0]) = B_BISHOP) and (cellAt [0,0,0] = BLACKS_MOVE)
+B_KNIGHT->GREEN: down = RED and (cellAt(thisPos+[-1,-2,-1]) = BLUE) and (cellAt(thisPos+[-1,-2,0]) instanceOf VALID_B_MOVE) and (cellAt [0,0,0] = BLACKS_MOVE)

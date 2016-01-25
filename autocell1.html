@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Autocell Sandbox</title>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<script type="text/javascript">
+window.onload = function() {
+	init_autocell();
+	document.getElementById('autocell').addEventListener("click", function(e) { autocell_click(e.clientX-document.getElementById('autocell').offsetLeft, e.clientY-document.getElementById('autocell').offsetTop); }, false);
+	run_autocell(800);
+	render_autocell();
+}
+
+var brush = 'BLACK';
+var canvas_width = 256;
+var canvas_height = 256;
+                        
+var updateTimer = 0;
+
+var ALL_NEIGHBORS = [1,1,1,1,1,1,1,1];
+var NORTH_NEIGHBORS = [0,1,0,0,0,0,0,0];
+var SOUTH_NEIGHBORS = [0,0,0,0,0,0,1,0];
+var EAST_NEIGHBORS = [0,0,0,0,1,0,0,0];
+var WEST_NEIGHBORS = [0,0,0,1,0,0,0,0];
+
+var autocell_board = [];
+
+var autocell_rules = [];
+
+var GAME_OF_LIFE = "EMPTY->BLACK: count (neighbors ofType BLACK) = 3\nBLACK->EMPTY: not (count (neighbors ofType BLACK) isIn [2,3])";
+var GAME_OF_LIFE_BOARD = '[["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","BLACK","BLACK","EMPTY","BLACK","BLACK","EMPTY","BLACK","BLACK","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","BLACK","EMPTY","EMPTY","BLACK","EMPTY","EMPTY","BLACK","EMPTY","EMPTY","BLACK","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","BLACK","BLACK","EMPTY","BLACK","BLACK","EMPTY","BLACK","BLACK","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"]]';
+var SEEDS = "EMPTY->BLACK: count (neighbors ofType BLACK) = 2\nBLACK->EMPTY: 1";
+var SEEDS_BOARD = '[["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","BLACK","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","BLACK","EMPTY","EMPTY"],["EMPTY","BLACK","EMPTY","BLACK","EMPTY","BLACK","BLACK","BLACK","BLACK","BLACK","BLACK","EMPTY","BLACK","EMPTY","BLACK","EMPTY"],["BLACK","EMPTY","EMPTY","EMPTY","EMPTY","BLACK","EMPTY","BLACK","BLACK","EMPTY","BLACK","EMPTY","EMPTY","EMPTY","EMPTY","BLACK"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","BLACK","BLACK","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","BLACK","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","BLACK","EMPTY"],["EMPTY","EMPTY","BLACK","EMPTY","EMPTY","BLACK","EMPTY","EMPTY","EMPTY","EMPTY","BLACK","EMPTY","EMPTY","BLACK","EMPTY","EMPTY"],["BLACK","EMPTY","EMPTY","EMPTY","BLACK","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","BLACK","EMPTY","EMPTY","EMPTY","BLACK"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["BLACK","EMPTY","EMPTY","EMPTY","BLACK","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","BLACK","EMPTY","EMPTY","EMPTY","BLACK"],["EMPTY","EMPTY","BLACK","EMPTY","EMPTY","BLACK","EMPTY","EMPTY","EMPTY","EMPTY","BLACK","EMPTY","EMPTY","BLACK","EMPTY","EMPTY"],["EMPTY","BLACK","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","BLACK","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","BLACK","BLACK","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["BLACK","EMPTY","EMPTY","EMPTY","EMPTY","BLACK","EMPTY","BLACK","BLACK","EMPTY","BLACK","EMPTY","EMPTY","EMPTY","EMPTY","BLACK"],["EMPTY","BLACK","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","BLACK","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"]]';
+var BRIANS_BRAIN = "EMPTY->BLACK: count (neighbors ofType BLACK) = 2\nBLACK->GREEN: 1\nGREEN->EMPTY: 1";
+var BRIANS_BRAIN_BOARD = '[["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","BLACK","BLACK","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","BLACK","BLACK","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"]]';
+var WIREWORLD = "BLUE->RED: 1\nRED->YELLOW: 1\nYELLOW->BLUE: count (neighbors ofType BLUE) isIn [1,2]";
+var WIREWORLD_BOARD = '[["EMPTY","EMPTY","YELLOW","YELLOW","EMPTY","EMPTY","EMPTY","YELLOW","YELLOW","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","YELLOW","YELLOW","EMPTY","YELLOW","EMPTY","YELLOW","EMPTY","YELLOW","YELLOW","YELLOW","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["YELLOW","EMPTY","YELLOW","YELLOW","EMPTY","BLUE","EMPTY","YELLOW","YELLOW","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY","EMPTY","EMPTY"],["YELLOW","EMPTY","EMPTY","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY","EMPTY"],["EMPTY","YELLOW","YELLOW","YELLOW","YELLOW","EMPTY","EMPTY","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY"],["YELLOW","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY","EMPTY","EMPTY","YELLOW","EMPTY"],["YELLOW","EMPTY","EMPTY","EMPTY","YELLOW","YELLOW","EMPTY","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY","EMPTY","EMPTY","YELLOW","EMPTY"],["YELLOW","EMPTY","YELLOW","YELLOW","EMPTY","YELLOW","YELLOW","YELLOW","YELLOW","EMPTY","EMPTY","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY"],["EMPTY","YELLOW","EMPTY","EMPTY","YELLOW","YELLOW","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","YELLOW","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","YELLOW","EMPTY","EMPTY","EMPTY","EMPTY","YELLOW","YELLOW","YELLOW","YELLOW","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","YELLOW","EMPTY","YELLOW","YELLOW","YELLOW","EMPTY","EMPTY","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","YELLOW","YELLOW","EMPTY","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY","EMPTY"],["EMPTY","YELLOW","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY","EMPTY","EMPTY","YELLOW","EMPTY","EMPTY"],["EMPTY","EMPTY","YELLOW","YELLOW","EMPTY","YELLOW","YELLOW","YELLOW","EMPTY","YELLOW","YELLOW","YELLOW","YELLOW","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"]]';
+var LANGTONS_ANT = 'ANT1->EMPTY: 1\nANT2->EMPTY: 1\nANT3->EMPTY: 1\nANT4->EMPTY: 1\nANT5->BLACK: 1\nANT6->BLACK: 1\nANT7->BLACK: 1\nANT8->BLACK: 1\nEMPTY->ANT5: west isIn ["ANT6","ANT2"]\nEMPTY->ANT6: north isIn ["ANT7","ANT3"]\nEMPTY->ANT7: east isIn ["ANT8","ANT4"]\nEMPTY->ANT8: south isIn ["ANT5","ANT1"]\nBLACK->ANT1: east isIn ["ANT8","ANT4"]\nBLACK->ANT2: south isIn ["ANT5","ANT1"]\nBLACK->ANT3: west isIn ["ANT6","ANT2"]\nBLACK->ANT4: north isIn ["ANT7","ANT3"]';
+var LANGTONS_ANT_BOARD = '[["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","ANT1","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"],["EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY","EMPTY"]]';
+
+function run_autocell(stepsize) {
+	clearInterval(updateTimer);
+	if (stepsize < 1) { return; }
+	if (stepsize < 50) { stepsize = 50; }
+	updateTimer = setInterval('update_autocell()', stepsize);
+}
+function stop_autocell() { run_autocell(0); }
+
+function init_autocell() {
+	set_board(make_empty_board(16,16));
+	set_rules('');
+}
+
+function update_autocell() {
+	var newboard = new Array(autocell_board.length);
+	for(var y in autocell_board) {
+		newboard[y] = new Array(autocell_board[y].length);
+		for(var x in autocell_board[y]) {
+			newboard[y][x] = apply_rules(parseInt(x),parseInt(y));
+		}
+	}
+	autocell_board = newboard;
+	
+	render_autocell();
+}
+
+function render_autocell() {
+	var context = document.getElementById('autocell').getContext('2d');
+	
+	context.fillStyle = "rgba(125,125,125,1)";
+	context.fillRect(0,0, canvas_width, canvas_height);
+	
+	var cell_height = canvas_height/autocell_board.length;
+	for(var y in autocell_board) {
+		var cell_width = canvas_width/autocell_board[y].length;
+		for(var x in autocell_board[y]) {
+			if (autocell_board[y][x] == 'EMPTY') {
+				context.fillStyle = "rgba(240,240,240,1)";
+			} else if (autocell_board[y][x] == 'BLACK') {
+				context.fillStyle = "rgba(0,0,0,1)";
+			} else if (autocell_board[y][x] == 'WHITE') {
+				context.fillStyle = "rgba(255,255,255,1)";
+			} else if (autocell_board[y][x] == 'RED') {
+				context.fillStyle = "rgba(255,0,0,1)";
+			} else if (autocell_board[y][x] == 'YELLOW') {
+				context.fillStyle = "rgba(255,255,0,1)";
+			} else if (autocell_board[y][x] == 'GREEN') {
+				context.fillStyle = "rgba(0,255,0,1)";
+			} else if (autocell_board[y][x] == 'CYAN') {
+				context.fillStyle = "rgba(0,255,255,1)";
+			} else if (autocell_board[y][x] == 'BLUE') {
+				context.fillStyle = "rgba(0,0,255,1)";
+			} else {
+				context.fillStyle = "rgba(255,0,255,1)";
+			}
+			context.fillRect(cell_width*x,cell_height*y, cell_width-1, cell_height-1);
+		}
+	}
+}
+
+function set_board(boardText) {
+	try {
+		autocell_board = JSON.parse(boardText);
+		render_autocell();
+	} catch (err) {
+		alert(err);
+	}
+}
+
+function set_rules(ruleText) {
+	document.getElementById('rules').innerHTML = ruleText;
+	try {
+		var new_autocell_rules = [];
+		var rules = ruleText.split('\n');
+		for (var r in rules) {
+			var rule = trim(rules[r]);
+			if (rule == "" || rule.indexOf('#') == 0 || rule.indexOf('//') == 0) continue;
+			var index = rule.indexOf(':')+1;
+			if (index == 0) { throw 'Expected colon in "'+rule+'"'; }
+			var transition = rule.substring(0, index);
+			rule = trim(rule.substring(index));
+			transition = transition.substring(0, transition.indexOf(':'));
+			if (transition.indexOf('->') == -1) { throw 'Expected arrow (->) in "'+transition+'"'; }
+			var fromAndTo = transition.split('->');
+			if (fromAndTo.length != 2) { throw '"'+transition+'" has undexpected number of arrows.'; }
+			fromAndTo[0] = trim(fromAndTo[0]);
+			fromAndTo[1] = trim(fromAndTo[1]);
+			if ( ! (new_autocell_rules[fromAndTo[0]] instanceof Array)) {
+				new_autocell_rules[fromAndTo[0]] = [];
+			}
+			new_autocell_rules[fromAndTo[0]].push({condition:parse_rule(rule), result:fromAndTo[1]});
+		}
+		autocell_rules = new_autocell_rules;
+	} catch (err) {
+		alert(err);
+	}
+}
+
+function make_empty_board(width, height) {
+	var results = '[';
+	for(var y=0; y < height; y++) {
+		if (y != 0) { results += ','; }
+		results += '[';
+		for(var x=0; x < width; x++) {
+			if (x != 0) { results += ','; }
+			results += '"EMPTY"';
+		}
+		results += ']';
+	}
+	results += ']';
+	return results;
+}
+
+function autocell_click(rawX,rawY) {
+	var cell_height = canvas_height/autocell_board.length;
+	var y = parseInt(rawY/cell_height);
+	var cell_width = canvas_width/autocell_board[y].length;
+	var x = parseInt(rawX/cell_width);
+	if (brush == 'eyedropper') {
+		brush = autocell_board[y][x];
+		document.getElementById('brush').value = brush;
+	} else {
+		autocell_board[y][x] = brush;
+		render_autocell();
+	}
+}
+
+function apply_rules(x,y) {
+	var type = autocell_board[y][x];
+	for(var r in autocell_rules[type]) {
+		var rule = autocell_rules[type][r];
+		
+		if (evaluate_token(x,y,rule.condition)) {
+			return rule.result;
+		}
+	}
+	return type;
+}
+
+function evaluate_token(x,y,token) {
+	if (typeof token == 'object') {
+		return token.evaluate(x,y);
+	} else if (token == 'neighbors') {
+		return get_neighbors(x,y,ALL_NEIGHBORS,false);
+	} else if (token == 'north') {
+		return get_neighbors(x,y,NORTH_NEIGHBORS,true);
+	} else if (token == 'south') {
+		return get_neighbors(x,y,SOUTH_NEIGHBORS,true);
+	} else if (token == 'east') {
+		return get_neighbors(x,y,EAST_NEIGHBORS,true);
+	} else if (token == 'west') {
+		return get_neighbors(x,y,WEST_NEIGHBORS,true);
+	} else if (isInt(token)) {
+		return parseInt(token);
+	} else {
+		try {
+			return JSON.parse(token);
+		} catch (err2) {
+			return token;
+		}
+	}
+}
+
+function get_neighbors(x,y,pattern,onlyone) {
+	var results = [];
+	try {if (pattern[0] && autocell_board[y-1][x-1] !== undefined) results.push(autocell_board[y-1][x-1]);} catch(err) {}
+	try {if (pattern[1] && autocell_board[y-1][x] !== undefined) results.push(autocell_board[y-1][x]);} catch(err) {}
+	try {if (pattern[2] && autocell_board[y-1][x+1] !== undefined) results.push(autocell_board[y-1][x+1]);} catch(err) {}
+	try {if (pattern[3] && autocell_board[y][x-1] !== undefined) results.push(autocell_board[y][x-1]);} catch(err) {}
+	try {if (pattern[4] && autocell_board[y][x+1] !== undefined) results.push(autocell_board[y][x+1]);} catch(err) {}
+	try {if (pattern[5] && autocell_board[y+1][x-1] !== undefined) results.push(autocell_board[y+1][x-1]);} catch(err) {}
+	try {if (pattern[6] && autocell_board[y+1][x] !== undefined) results.push(autocell_board[y+1][x]);} catch(err) {}
+	try {if (pattern[7] && autocell_board[y+1][x+1] !== undefined) results.push(autocell_board[y+1][x+1]);} catch(err) {}
+	
+	if (onlyone) { return (results.length == 0)? 'NULL' : results[0]; }
+	return results;
+}
+
+var verbTemplates = [
+	{name:'ofType', priority:10, form:'diadic'},
+	{name:'contains', priority:10, form:'diadic'},
+	{name:'isIn', priority:10, form:'diadic'},
+	{name:'count', priority:10, form:'monadic'},
+	{name:'echo', priority:10, form:'monadic'},
+	{name:'not', priority:10, form:'monadic'},
+	{name:'(', priority:100, form:'open-paren'},
+	{name:')', priority:-100, form:'close-paren'},
+	{name:'or', priority:5, form:'diadic'},
+	{name:'and', priority:5, form:'diadic'},
+	{name:'=', priority:10, form:'diadic'},
+	{name:'>', priority:10, form:'diadic'},
+	{name:'<', priority:10, form:'diadic'}
+];
+
+function get_verb_template(token) {
+	for (var v in verbTemplates) {
+		if (verbTemplates[v].name == token) {
+			return verbTemplates[v];
+		}
+	}
+	return -1;
+}
+
+function Verb (verbTemplate, param1, param2) {
+	this.name = verbTemplate.name;
+	this.priority = verbTemplate.priority;
+	this.form = verbTemplate.form;
+	this.param1 = param1;
+	this.param2 = param2;
+	
+	this.evaluate = function(x,y) {
+		if (this.name == 'ofType') {
+			var list = evaluate_token(x,y,this.param1);
+			var type = evaluate_token(x,y,this.param2);
+			for (var i=0; i < list.length; i++) {
+				if (list[i] != type) {
+					list.splice(i,1);
+					i--;
+				}
+			}
+			return list;
+			
+		} else if (this.name == 'contains') {
+			var list = evaluate_token(x,y,this.param1);
+			var item = evaluate_token(x,y,this.param2);
+			return list.indexOf(item) != -1;
+			
+		} else if (this.name == 'isIn') {
+			var item = evaluate_token(x,y,this.param1);
+			var list = evaluate_token(x,y,this.param2);
+			return list.indexOf(item) != -1
+			
+		} else if (this.name == 'count') {
+			var list = evaluate_token(x,y,this.param1);
+			return list.length;
+			
+		} else if (this.name == '=') {
+			var left = evaluate_token(x,y,this.param1);
+			var right = evaluate_token(x,y,this.param2);
+			return (left == right);
+			
+		} else if (this.name == '>') {
+			var left = evaluate_token(x,y,this.param1);
+			var right = evaluate_token(x,y,this.param2);
+			return (left > right);
+			
+		} else if (this.name == '<') {
+			var left = evaluate_token(x,y,this.param1);
+			var right = evaluate_token(x,y,this.param2);
+			return (left < right);
+			
+		} else if (this.name == 'not') {
+			var val = evaluate_token(x,y,this.param1);
+			return !val;
+			
+		} else if (this.name == 'and') {
+			var left = evaluate_token(x,y,this.param1);
+			var right = evaluate_token(x,y,this.param2);
+			return (left && right);
+			
+		} else if (this.name == 'or') {
+			var left = evaluate_token(x,y,this.param1);
+			var right = evaluate_token(x,y,this.param2);
+			return (left || right);
+			
+		} else if (this.name == 'echo') {
+			var val = evaluate_token(x,y,this.param1);
+			alert('Echo: '+val);
+			return val;
+			
+		} else {
+			throw 'No verb found named "'+this.name+'"';
+		}
+	}
+}
+
+function parse_rule(rule) {
+	rule = rule.replace(/\(/g,' ( ');
+	rule = rule.replace(/\)/g,' ) ');
+	rule = rule.replace(/\s+/g,' ');
+	var tokens = trim(rule).split(' ');
+	
+	while (tokens.length > 1) {
+		var index = -1;
+		var highestPriority = -100000000000;
+		var priorityMod = 0;
+		for(var i=0; i < tokens.length; i++) {
+			if (tokens[i] == ')') {
+				priorityMod -= 10000;
+			}
+			
+			if (get_verb_template(tokens[i]) == -1) { continue; }
+			var priority = get_verb_template(tokens[i]).priority + priorityMod;
+			if (priority > highestPriority) {
+				highestPriority = priority;
+				index = i;
+			}
+			
+			if (tokens[i] == '(') {
+				priorityMod += 10000;
+			}
+		}
+		
+		if (priorityMod != 0) { throw '\"'+rule+'" does not contain equal numbers of parentheses'; }
+		
+		if (index < 0) { throw '\"'+rule+'" resolves to more than one noun in its final state of "'+tokens.join(" ")+'"'; }
+		
+		var verbTemplate = get_verb_template(tokens[index]);
+		
+		if (verbTemplate.form == 'monadic') {
+			if (index == tokens.length-1) { throw 'Cannot resolve "'+tokens[index]+'". No right parameter.'; }
+			tokens.splice(index, 2, new Verb(verbTemplate, tokens[index+1], ''));
+			
+		} else if (verbTemplate.form == 'diadic') {
+			if (index == 0) { throw 'Cannot resolve "'+tokens[index]+'". No left parameter.'; }
+			if (index == tokens.length-1) { throw 'Cannot resolve "'+tokens[index]+'". No right parameter.'; }
+			tokens.splice(index-1, 3, new Verb(verbTemplate, tokens[index-1], tokens[index+1]));
+			
+		} else if (verbTemplate.form == 'self-removing') {
+			tokens.splice(index, 1);
+			
+		} else if (verbTemplate.form == 'open-paren') {
+			var indexOfClose = tokens.indexOf(')', index);
+			if (indexOfClose == -1) { throw 'Expected close paren in "'+rule+'"'; }
+			tokens.splice(indexOfClose, 1);
+			tokens.splice(index, 1);
+			
+		} else {
+			throw 'Verb "'+tokens[index]+'" has unknown form "'+verbTemplate.form+'"';
+		}
+	}
+	return tokens[0];
+}
+
+//Utility Functions:
+
+//http://www.peterbe.com/plog/isint-function
+function isInt(x) { 
+	var y=parseInt(x); 
+	if (isNaN(y)) return false; 
+	return x==y && x.toString()==y.toString();
+}
+
+/**
+*
+*  Javascript trim, ltrim, rtrim
+*  http://www.webtoolkit.info/
+*
+**/
+ 
+function trim(str, chars) {
+	return ltrim(rtrim(str, chars), chars);
+}
+ 
+function ltrim(str, chars) {
+	chars = chars || "\\s";
+	return str.replace(new RegExp("^[" + chars + "]+", "g"), "");
+}
+ 
+function rtrim(str, chars) {
+	chars = chars || "\\s";
+	return str.replace(new RegExp("[" + chars + "]+$", "g"), "");
+}
+</script>
+<style type="text/css">
+	#body {
+		background-color: #EFE;
+	}
+
+	#autocell {
+		border: thin solid black;
+	}
+	
+	#worldsection {
+		width: 280px;
+		float: left;
+		text-align: center;
+		padding: 5px 10px;
+	}
+	
+	#rulesection {
+		float: left;
+		text-align: center;
+	}
+	
+	#rules {
+		margin-top: 20px;
+	}
+</style>
+</head>
+<body id="body">
+<section id="worldsection">
+	<input type="text" id="brush" value="BLACK" onchange="brush=this.value.toUpperCase(); this.value=brush"/><button onclick="brush='eyedropper'; document.getElementById('brush').value = '...'">Eyedropper</button><br/>
+	<canvas id="autocell" width="255" height="255">	Your browser does not support this game. Sorry. </canvas><br/>
+	<button onclick="run_autocell(100); document.getElementById('speed').innerHTML='Fast'">Fast</button><button onclick="run_autocell(800); document.getElementById('speed').innerHTML='Medium'">Medium</button><button onclick="run_autocell(3000); document.getElementById('speed').innerHTML='Slow'">Slow</button><button onclick="stop_autocell(); document.getElementById('speed').innerHTML='Stopped'">Stop</button><button onclick="update_autocell()">Step</button><br/>
+	Current speed: <span id="speed">Medium</span><br/>
+	<br/>
+	<textarea id="boarddata" cols=32" rows="5"></textarea><br/>
+	<button onclick="document.getElementById('boarddata').value = JSON.stringify(autocell_board)">Board -> Text</button><button onclick="set_board(document.getElementById('boarddata').value)">Text -> Board</button>
+</section>
+<section id="rulesection">
+	Load: <button onclick="set_rules(GAME_OF_LIFE); set_board(GAME_OF_LIFE_BOARD)">Conway's Life</button><button onclick="set_rules(WIREWORLD); set_board(WIREWORLD_BOARD)">Wireworld</button><button onclick="set_rules(SEEDS); set_board(SEEDS_BOARD)">Seeds</button><button onclick="set_rules(BRIANS_BRAIN); set_board(BRIANS_BRAIN_BOARD)">Brian's Brain</button><button onclick="set_rules(LANGTONS_ANT); set_board(LANGTONS_ANT_BOARD)">Langton's Ant</button><br/><hr/>
+	<textarea wrap="off" id="rules" cols=50" rows="20">Enter rules here</textarea><br/>
+	<button onclick="set_rules(document.getElementById('rules').value)">Update Rules</button>
+</section>
+</body>
+</html>
